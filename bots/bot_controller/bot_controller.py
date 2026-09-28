@@ -1851,6 +1851,14 @@ class BotController:
             self.websocket_audio_error_ticker += 1
 
     def save_debug_artifacts(self, message, new_bot_event):
+        # Local patch #9: off by default. These capture screenshots AND
+        # full MHTML page archives of live meetings, are triggered by
+        # UI-element lookup failures rather than by anything we ask for,
+        # and have no consumer here. Mirrors SAVE_DEBUG_RECORDINGS /
+        # SAVE_BOT_RESOURCE_SNAPSHOTS. Flip on to debug a reported issue.
+        if os.getenv("SAVE_DEBUG_ARTIFACTS", "false").strip().lower() != "true":
+            logger.info("Not saving debug artifacts (SAVE_DEBUG_ARTIFACTS is off)")
+            return
         try:
             self.save_debug_artifacts_with_no_error_handling(message, new_bot_event)
         except Exception:
