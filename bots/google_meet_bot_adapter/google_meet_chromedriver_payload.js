@@ -744,12 +744,15 @@ class StyleManager {
             // Click to open the chat panel
             chatButton.click();
 
-            // Wait for the chat input element to appear
-            const numAttempts = 30;
+            // Local patch #3: 10s timeout + selector fallbacks
+            const numAttempts = 100;
             for (let i = 0; i < numAttempts; i++) {
                 // Sleep for 100 milliseconds
                 await new Promise(resolve => setTimeout(resolve, 100));
-                const chatInput = document.querySelector('textarea[aria-label="Send a message"]');
+                const chatInput = document.querySelector('textarea[aria-label="Send a message"]')
+                    || document.querySelector('textarea[aria-label*="message" i]')
+                    || document.querySelector('textarea[aria-label*="chat" i]')
+                    || document.querySelector('[contenteditable="true"][role="textbox"]');
                 if (chatInput) {
                     break;
                 }
