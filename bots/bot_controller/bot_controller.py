@@ -10,6 +10,7 @@ from datetime import timedelta
 
 import gi
 import redis
+import requests
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils import timezone
@@ -2224,6 +2225,21 @@ class BotController:
         if message.get("message") == BotAdapter.Messages.READY_TO_SEND_CHAT_MESSAGE:
             logger.info("Received message that bot is ready to send chat message")
             self.take_action_based_on_chat_message_requests_in_db()
+            # Local patch #6: forward chat_space_id (extracted by patch #5 from Meet's
+            # cross-origin chat.google.com iframe) to atlas ingest. Ingest posts the
+            # compliance notice via Chat API directly to the known space — bypasses
+            # the spaces.list activation quirk.
+            _chat_space_id = message.get("chat_space_id")
+            _cb_url = os.environ.get("ATLAS_CHAT_SPACE_CALLBACK_URL")
+            if _chat_space_id and _cb_url:
+                try:
+                    requests.post(
+                        _cb_url,
+                        json={"bot_id": self.bot_in_db.object_id, "chat_space_id": _chat_space_id},
+                        timeout=10,
+                    )
+                except Exception:
+                    logger.exception("atlas chat_space callback failed")
             return
 
         if message.get("message") == BotAdapter.Messages.READY_TO_SHOW_BOT_IMAGE:
