@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.81.1-sp.2](https://github.com/spectrocloud-public/attendee/compare/v1.81.1-sp.1...v1.81.1-sp.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* prefix tricorder redis data ([a66f5ec](https://github.com/spectrocloud-public/attendee/commit/a66f5ec80e3f1370930793283eaefbf5b03114db))
+* prefix tricorder redis data ([a66f5ec](https://github.com/spectrocloud-public/attendee/commit/a66f5ec80e3f1370930793283eaefbf5b03114db))
+* prefix tricorder redis data ([32ddcfa](https://github.com/spectrocloud-public/attendee/commit/32ddcfabc4e694e839f3d1f12283820af12dc6d2))
+
 ## [1.81.1-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.80.0-sp.1...v1.81.1-sp.1) (2026-09-29)
 
 
