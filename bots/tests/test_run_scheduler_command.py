@@ -5,7 +5,7 @@ import signal
 import tempfile
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone as django_timezone
 
 from accounts.models import Organization
@@ -19,6 +19,17 @@ def _build_celery_unacked_entry(bot_id, join_at_iso):
     encoded_body = base64.b64encode(body.encode()).decode()
     message = [{"body": encoded_body, "headers": {"task": "bots.tasks.launch_scheduled_bot_task.launch_scheduled_bot"}}]
     return json.dumps(message).encode()
+
+
+class RedisSchedulerPrefixTestCase(SimpleTestCase):
+    @override_settings(REDIS_KEY_PREFIX="tricorder:")
+    def test_pending_task_scan_reads_prefixed_unacked_key(self):
+        command = Command()
+        command._redis_client = MagicMock()
+        command._redis_client.hscan_iter.return_value = iter([])
+
+        self.assertEqual(command._get_args_for_pending_launch_scheduled_bot_tasks(), set())
+        command._redis_client.hscan_iter.assert_called_once_with("tricorder:unacked", match="*")
 
 
 class RunSchedulerCommandTestCase(TestCase):
