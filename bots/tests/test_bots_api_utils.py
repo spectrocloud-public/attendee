@@ -1,12 +1,13 @@
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
 from accounts.models import Organization
-from bots.bots_api_utils import BotCreationSource, build_internal_site_url, build_site_url, create_bot, create_webhook_subscription, patch_bot, validate_bot_concurrency_limit, validate_meeting_url_and_credentials
+from bots.bots_api_utils import BotCreationSource, build_internal_site_url, build_site_url, create_bot, create_webhook_subscription, patch_bot, send_sync_command, validate_bot_concurrency_limit, validate_meeting_url_and_credentials
 from bots.calendars_api_utils import create_calendar
 from bots.models import Bot, BotEventManager, BotEventTypes, BotLoginGroup, BotLoginPlatform, BotStates, CalendarEvent, CalendarPlatform, Project, TranscriptionProviders, WebhookSubscription, WebhookTriggerTypes, ZoomOAuthApp
 
@@ -67,6 +68,15 @@ class TestBuildSiteUrl(TestCase):
         mock_settings.SITE_DOMAIN = "production.example.com"
         result = build_internal_site_url("/cookie")
         self.assertEqual(result, "https://external.example.com/cookie")
+
+
+class TestRedisPrefix(SimpleTestCase):
+    @override_settings(REDIS_KEY_PREFIX="tricorder:")
+    @patch("bots.bots_api_utils.redis.from_url")
+    def test_send_sync_command_publishes_to_prefixed_channel(self, mock_from_url):
+        send_sync_command(SimpleNamespace(id=42), "sync")
+
+        mock_from_url.return_value.publish.assert_called_once_with("tricorder:bot_42", '{"command": "sync"}')
 
 
 class TestValidateMeetingUrlAndCredentials(TestCase):
