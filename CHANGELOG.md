@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.82.3-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.81.1-sp.2...v1.82.3-sp.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* Add robustness for concurrent credit transactions ([#1056](https://github.com/spectrocloud-public/attendee/issues/1056)) ([d9c4773](https://github.com/spectrocloud-public/attendee/commit/d9c47735b7cce6f2b8c63fc9601ec7982a122979))
+* sync upstream main into spectrocloud ([de7f8e5](https://github.com/spectrocloud-public/attendee/commit/de7f8e5dc1a3a4218cb6955bcd8c5395ba08e3a8))
+
 ## [1.81.1-sp.2](https://github.com/spectrocloud-public/attendee/compare/v1.81.1-sp.1...v1.81.1-sp.2) (2026-10-03)
 
 
