@@ -63,7 +63,7 @@ def url_is_allowed_for_voice_agent(url):
 
 def get_openai_model_enum():
     """Get allowed OpenAI models including custom env var if set"""
-    default_models = ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "gpt-4o-transcribe-diarize"]
+    default_models = ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "gpt-4o-transcribe-diarize", "gpt-transcribe"]
     custom_model = os.getenv("OPENAI_MODEL_NAME")
     if custom_model and custom_model not in default_models:
         return default_models + [custom_model]
@@ -1151,11 +1151,6 @@ ROOM_SYNC_SETTINGS_SCHEMA = {
     "type": "object",
     "description": "Settings for syncing meeting media and participants with an external real-time room. Currently only LiveKit is supported.",
     "properties": {
-        "sync_to_room": {
-            "type": "boolean",
-            "default": True,
-            "description": "Whether the bot should mirror the meeting's participants, audio and chat into the room. Defaults to true. Only set to false when multiple agents will be sharing a room.",
-        },
         "livekit": {
             "type": "object",
             "description": "LiveKit connection details. The LiveKit server URL is configured as part of the project's LiveKit credentials.",

@@ -3,8 +3,10 @@ import json
 import logging
 import math
 import os
+import random
 import secrets
 import string
+import time
 from datetime import timedelta
 
 from concurrency.exceptions import RecordModifiedError
@@ -1141,8 +1143,7 @@ class Bot(models.Model):
         return livekit_settings.get("source_participant", None)
 
     def room_sync_sync_to_room(self):
-        room_sync_settings = self.settings.get("room_sync_settings") or {}
-        return room_sync_settings.get("sync_to_room", True)
+        return True
 
     def voice_agent_url(self):
         voice_agent_settings = self.settings.get("voice_agent_settings", {}) or {}
@@ -1356,6 +1357,8 @@ class CreditTransactionManager:
         """
         max_retries = 10
         retry_count = 0
+        max_total_sleep_seconds = 4.0
+        total_slept_seconds = 0.0
 
         while retry_count < max_retries:
             try:
@@ -1390,6 +1393,10 @@ class CreditTransactionManager:
                 retry_count += 1
                 if retry_count >= max_retries:
                     raise RuntimeError("Max retries exceeded while attempting to create credit transaction")
+                # Exponential backoff with full jitter so concurrent writers for the same org stop colliding on the same leaf
+                sleep_seconds = min(random.uniform(0, min(1.0, 0.05 * (2**retry_count))), max_total_sleep_seconds - total_slept_seconds)
+                time.sleep(sleep_seconds)
+                total_slept_seconds += sleep_seconds
                 continue
 
 
