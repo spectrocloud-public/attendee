@@ -86,5 +86,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
+          build-args: |
+            PIP_INDEX_URL=https://pkg.teams.spectrocloud.com/pypi/simple/
           push: true
           tags: 607374883620.dkr.ecr.us-west-2.amazonaws.com/tricorder/attendee:${{ needs.release-please.outputs.tag_name }}
