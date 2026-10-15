@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PIP_INDEX_URL: https://pkg.teams.spectrocloud.com/pypi/simple/
+
 jobs:
   test:
     name: "Tests: ${{ matrix.test_suite }}"
@@ -66,6 +69,8 @@ jobs:
           push: false
           load: true
           tags: attendee-test:latest
+          build-args: |
+            PIP_INDEX_URL=${{ env.PIP_INDEX_URL }}
           cache-from: type=gha,scope=attendee-test
           cache-to: type=gha,scope=attendee-test,mode=min
 
