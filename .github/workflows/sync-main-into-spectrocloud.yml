@@ -1,0 +1,86 @@
+name: Sync Main into SpectroCloud
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UPSTREAM_REPO: https://github.com/attendee-labs/attendee.git
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: spectrocloud
+          fetch-depth: 0
+
+      - name: Check for new upstream commits on main
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Use upstream, not origin/main: this repo is a fork, so its own
+          # main lags attendee-labs/attendee and would silently skip commits.
+          git remote add upstream "$UPSTREAM_REPO"
+          git fetch --no-tags upstream main
+
+          pending=$(git rev-list --count origin/spectrocloud..upstream/main)
+          echo "pending=$pending" >> "$GITHUB_OUTPUT"
+          if [[ "$pending" -eq 0 ]]; then
+            echo "upstream/main has no commits missing from origin/spectrocloud; nothing to sync."
+          fi
+
+      - name: Create sync branch from upstream main
+        if: steps.check.outputs.pending != '0'
+        id: branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="sync/main-into-spectrocloud-$(date -u +%Y%m%d-%H%M%S)"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$branch" upstream/main
+
+          # GITHUB_TOKEN cannot push workflow changes. Keep this fork's workflows;
+          # GitHub will detect every other conflict when the pull request opens.
+          git restore --source=origin/spectrocloud --staged --worktree .github/workflows
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: preserve Spectro Cloud workflows"
+          fi
+
+          git push origin "HEAD:refs/heads/$branch"
+
+      - name: Open pull request
+        if: steps.check.outputs.pending != '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="${{ steps.branch.outputs.branch }}"
+          title="fix: sync upstream main into spectrocloud"
+
+          cat > /tmp/pr-body.md <<EOF
+          Automated sync of upstream \`attendee-labs/attendee\` \`main\` into \`spectrocloud\` (${{ steps.check.outputs.pending }} commits).
+
+          GitHub will report any merge conflicts. This fork's \`.github/workflows/*\` files are preserved because \`GITHUB_TOKEN\` cannot push workflow changes.
+          EOF
+
+          gh pr create \
+            --repo "${{ github.repository }}" \
+            --base spectrocloud \
+            --head "$branch" \
+            --title "$title" \
+            --body-file /tmp/pr-body.md
