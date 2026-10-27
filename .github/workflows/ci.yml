@@ -9,8 +9,10 @@ on:
 permissions:
   contents: read
 
-env:
-  PIP_INDEX_URL: https://pkg.teams.spectrocloud.com/pypi/simple/
+# Disabled: pkg.teams' CloudFront cache serves JSON simple-index pages that
+# the image's pip 22.0 cannot read ("Skipping page ... Content-Type").
+# env:
+#   PIP_INDEX_URL: https://pkg.teams.spectrocloud.com/pypi/simple/
 
 jobs:
   test:
@@ -69,8 +71,8 @@ jobs:
           push: false
           load: true
           tags: attendee-test:latest
-          build-args: |
-            PIP_INDEX_URL=${{ env.PIP_INDEX_URL }}
+          # build-args: |
+          #   PIP_INDEX_URL=${{ env.PIP_INDEX_URL }}
           cache-from: type=gha,scope=attendee-test
           cache-to: type=gha,scope=attendee-test,mode=min
 
