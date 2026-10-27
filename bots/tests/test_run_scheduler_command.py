@@ -5,11 +5,11 @@ import signal
 import tempfile
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone as django_timezone
 
 from accounts.models import Organization
-from bots.management.commands.run_scheduler import CALENDAR_SYNC_THRESHOLD_HOURS, Command
+from bots.management.commands.run_scheduler import CALENDAR_SYNC_THRESHOLD_MINUTES, Command
 from bots.models import Bot, BotStates, Calendar, CalendarPlatform, CalendarStates, Project, ZoomOAuthApp, ZoomOAuthConnection, ZoomOAuthConnectionStates
 
 
@@ -19,6 +19,17 @@ def _build_celery_unacked_entry(bot_id, join_at_iso):
     encoded_body = base64.b64encode(body.encode()).decode()
     message = [{"body": encoded_body, "headers": {"task": "bots.tasks.launch_scheduled_bot_task.launch_scheduled_bot"}}]
     return json.dumps(message).encode()
+
+
+class RedisSchedulerPrefixTestCase(SimpleTestCase):
+    @override_settings(REDIS_KEY_PREFIX="tricorder:")
+    def test_pending_task_scan_reads_prefixed_unacked_key(self):
+        command = Command()
+        command._redis_client = MagicMock()
+        command._redis_client.hscan_iter.return_value = iter([])
+
+        self.assertEqual(command._get_args_for_pending_launch_scheduled_bot_tasks(), set())
+        command._redis_client.hscan_iter.assert_called_once_with("tricorder:unacked", match="*")
 
 
 class RunSchedulerCommandTestCase(TestCase):
@@ -187,11 +198,11 @@ class RunSchedulerCommandTestCase(TestCase):
     def test_run_periodic_calendar_syncs_handles_boundary_conditions(self):
         """Test calendar sync with calendars exactly at the threshold boundary"""
         # Calendar synced exactly at threshold (should be included)
-        exactly_at_threshold = self.now - django_timezone.timedelta(hours=CALENDAR_SYNC_THRESHOLD_HOURS)
+        exactly_at_threshold = self.now - django_timezone.timedelta(minutes=CALENDAR_SYNC_THRESHOLD_MINUTES)
         calendar_boundary = Calendar.objects.create(project=self.project, platform=CalendarPlatform.GOOGLE, state=CalendarStates.CONNECTED, sync_task_enqueued_at=exactly_at_threshold, client_id="test_client_id_boundary")
 
         # Calendar synced just under threshold (should be excluded)
-        just_under_threshold = self.now - django_timezone.timedelta(hours=CALENDAR_SYNC_THRESHOLD_HOURS, minutes=-1)
+        just_under_threshold = self.now - django_timezone.timedelta(minutes=CALENDAR_SYNC_THRESHOLD_MINUTES - 1)
         calendar_just_under = Calendar.objects.create(project=self.project, platform=CalendarPlatform.MICROSOFT, state=CalendarStates.CONNECTED, sync_task_enqueued_at=just_under_threshold, client_id="test_client_id_under")
 
         command = Command()
