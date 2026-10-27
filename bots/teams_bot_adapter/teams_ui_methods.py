@@ -10,7 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from bots.models import RecordingViews
-from bots.utils import cyrillicize_keywords_in_string, truncate_string_with_ellipsis
+from bots.utils import cyrillicize_keywords_in_string, remove_characters_from_string, truncate_string_with_ellipsis
 from bots.web_bot_adapter.ui_methods import UiBlockedByCaptchaException, UiCouldNotClickElementException, UiCouldNotJoinMeetingWaitingRoomTimeoutException, UiCouldNotLocateElementException, UiLoginAttemptFailedException, UiLoginRequiredException, UiMeetingNotFoundException, UiRequestToJoinDeniedException, UiRetryableException, UiRetryableExpectedException
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,22 @@ class TeamsUIMethods:
             # Check if we've been waiting too long
             logger.info("Still waiting to be admitted to the meeting after waiting period expired. Raising UiRequestToJoinDeniedException")
             raise UiRequestToJoinDeniedException("Bot was not let in after waiting period expired", step)
+
+    def check_if_in_waiting_room(self):
+        if self.sent_bot_put_in_waiting_room_message:
+            return
+
+        # The caller's loop turns any exception into a failed join, so this must not raise.
+        try:
+            call_state = self.driver.execute_script("return window.callManager?.getCallState();")
+        except Exception as e:
+            logger.info(f"Unknown error occurred in check_if_in_waiting_room. Exception type = {type(e)}")
+            return
+
+        # Values of callManager.getCallState() in the chromedriver payload: InLobby, NegotiatingEncryptionLobby.
+        teams_lobby_call_states = (10, 15)
+        if call_state in teams_lobby_call_states:
+            self.send_bot_put_in_waiting_room_message()
 
     def turn_off_media_inputs(self):
         logger.info("Waiting for the microphone button...")
@@ -129,6 +145,16 @@ class TeamsUIMethods:
         # Tell the injected payload to allow this exact display name through Teams' validation regex.
         self.driver.execute_script("return window.setDisplayNameToAllowForTeamsNameValidationBypass?.(arguments[0]);", display_name)
 
+    def install_join_shield_bypass(self):
+        if self.teams_bot_login_is_available and self.teams_bot_login_should_be_used:
+            logger.info("Not installing JoinShield bypass because we are signed in")
+            return
+
+        if self.driver.execute_script("return window.installJoinShieldBypass?.();"):
+            logger.info("Installed JoinShield bypass")
+        else:
+            logger.warning("Could not install JoinShield bypass")
+
     def fill_out_name_input(self):
         num_attempts = 60
         logger.info("Waiting for the name input field...")
@@ -140,9 +166,10 @@ class TeamsUIMethods:
                     self.display_name,
                     keywords=["notetaker"],
                 )
-                display_name_cyrillized_and_truncated = truncate_string_with_ellipsis(display_name_cyrillized, max_length=50)
-                self.set_display_name_to_allow(display_name_cyrillized_and_truncated)
-                name_input.send_keys(display_name_cyrillized_and_truncated)
+                display_name_cyrillized_and_characters_removed = remove_characters_from_string(display_name_cyrillized, characters="()")
+                display_name_cyrillized_and_characters_removed_and_truncated = truncate_string_with_ellipsis(display_name_cyrillized_and_characters_removed, max_length=50)
+                self.set_display_name_to_allow(display_name_cyrillized_and_characters_removed_and_truncated)
+                name_input.send_keys(display_name_cyrillized_and_characters_removed_and_truncated)
                 return
             except TimeoutException as e:
                 self.look_for_microsoft_login_form_element("name_input")
@@ -329,6 +356,7 @@ class TeamsUIMethods:
                 self.look_for_we_could_not_connect_you_element("click_show_more_button")
                 self.check_if_meeting_ended_but_we_should_retry("click_show_more_button")
 
+                self.check_if_in_waiting_room()
                 self.check_if_waiting_room_timeout_exceeded(waiting_room_timeout_started_at, "click_show_more_button")
                 self.check_if_waiting_room_connection_failed(waiting_room_timeout_started_at, "click_show_more_button")
 
@@ -526,6 +554,7 @@ class TeamsUIMethods:
         logger.info("Waiting for the Join now button...")
         join_button = self.locate_element(step="join_button", condition=EC.presence_of_element_located((By.CSS_SELECTOR, '[data-tid="prejoin-join-button"]')), wait_time_seconds=10)
         logger.info("Clicking the Join now button...")
+        self.install_join_shield_bypass()
         self.click_element(join_button, "join_button")
 
         # Start polling participants
