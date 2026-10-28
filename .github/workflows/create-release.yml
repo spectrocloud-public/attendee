@@ -103,9 +103,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
-          # Disabled: pkg.teams' CloudFront cache serves JSON simple-index pages
-          # that the image's pip 22.0 cannot read ("Skipping page ... Content-Type").
-          # build-args: |
-          #   PIP_INDEX_URL=https://pkg.teams.spectrocloud.com/pypi/simple/
+          build-args: |
+            PIP_INDEX_URL=https://pkg.teams.spectrocloud.com/pypi/simple/
           push: true
           tags: 607374883620.dkr.ecr.us-west-2.amazonaws.com/tricorder/attendee:${{ steps.tag.outputs.name }}
