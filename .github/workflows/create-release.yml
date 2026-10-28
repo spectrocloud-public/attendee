@@ -6,8 +6,8 @@ on:
   # Rebuilds the image for an existing release tag whose docker job failed.
   workflow_dispatch:
     inputs:
-      tag:
-        description: Existing release tag to build, e.g. v1.86.1-sp.1
+      version:
+        description: Existing release to build, e.g. 1.86.1-sp.1 (leading v optional)
         required: true
 
 permissions:
@@ -76,10 +76,17 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # Tags are v-prefixed; accept the version with or without it.
+      - name: Resolve release tag
+        id: tag
+        env:
+          VERSION: ${{ inputs.version || needs.release-please.outputs.tag_name }}
+        run: echo "name=v${VERSION#v}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout release
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+          ref: ${{ steps.tag.outputs.name }}
 
       - name: Log in to Amazon ECR
         uses: ./.github/actions/ecr-login
@@ -101,4 +108,4 @@ jobs:
           # build-args: |
           #   PIP_INDEX_URL=https://pkg.teams.spectrocloud.com/pypi/simple/
           push: true
-          tags: 607374883620.dkr.ecr.us-west-2.amazonaws.com/tricorder/attendee:${{ inputs.tag || needs.release-please.outputs.tag_name }}
+          tags: 607374883620.dkr.ecr.us-west-2.amazonaws.com/tricorder/attendee:${{ steps.tag.outputs.name }}
