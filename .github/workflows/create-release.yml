@@ -3,12 +3,19 @@ name: Create Release
 on:
   push:
     branches: [spectrocloud]
+  # Rebuilds the image for an existing release tag whose docker job failed.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build, e.g. v1.86.1-sp.1
+        required: true
 
 permissions:
   contents: read
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,7 +66,10 @@ jobs:
 
   docker:
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    # !cancelled() lets a dispatch run past the skipped release-please job.
+    if: >-
+      !cancelled() && (github.event_name == 'workflow_dispatch' ||
+      needs.release-please.outputs.release_created == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -69,7 +79,7 @@ jobs:
       - name: Checkout release
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
 
       - name: Log in to Amazon ECR
         uses: ./.github/actions/ecr-login
@@ -86,7 +96,9 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
-          build-args: |
-            PIP_INDEX_URL=https://pkg.teams.spectrocloud.com/pypi/simple/
+          # Disabled: pkg.teams' CloudFront cache serves JSON simple-index pages
+          # that the image's pip 22.0 cannot read ("Skipping page ... Content-Type").
+          # build-args: |
+          #   PIP_INDEX_URL=https://pkg.teams.spectrocloud.com/pypi/simple/
           push: true
-          tags: 607374883620.dkr.ecr.us-west-2.amazonaws.com/tricorder/attendee:${{ needs.release-please.outputs.tag_name }}
+          tags: 607374883620.dkr.ecr.us-west-2.amazonaws.com/tricorder/attendee:${{ inputs.tag || needs.release-please.outputs.tag_name }}
