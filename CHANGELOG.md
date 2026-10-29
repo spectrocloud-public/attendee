@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.88.0-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.88.0...v1.88.0-sp.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* sync upstream main into spectrocloud ([#24](https://github.com/spectrocloud-public/attendee/issues/24)) ([9d0cc6e](https://github.com/spectrocloud-public/attendee/commit/9d0cc6e5b7ae7e88d34c8a7782e84bc03ceda785))
+
 ## [1.86.1-sp.2](https://github.com/spectrocloud-public/attendee/compare/v1.86.1-sp.1...v1.86.1-sp.2) (2026-10-29)
 
 
