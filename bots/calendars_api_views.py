@@ -1,4 +1,3 @@
-from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from drf_spectacular.openapi import OpenApiResponse
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
@@ -358,7 +357,7 @@ class CalendarEventListView(GenericAPIView):
                 name="attendee_email",
                 type=str,
                 location=OpenApiParameter.QUERY,
-                description="Filter events with this email (case-insensitive) on their attendee list or in the calendar platform's raw event",
+                description="Filter events with this email (case-insensitive) on their attendee list",
                 required=False,
                 examples=[OpenApiExample("Attendee Email Example", value="jane@example.com")],
             ),
@@ -434,14 +433,14 @@ class CalendarEventListView(GenericAPIView):
                 return Response({"error": "Invalid start_time_lt format. Use ISO 8601 format (e.g., 2025-01-14T00:00:00Z)"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Apply attendee_email filter if provided. Matching the quoted email in the
-        # JSON text finds it as a whole value in either guest list, case-insensitively.
+        # JSON text finds it as a whole value in the attendee list, case-insensitively.
         attendee_email = request.query_params.get("attendee_email")
         if attendee_email is not None:
             attendee_email = attendee_email.strip()
             if not attendee_email:
                 return Response({"error": "attendee_email must not be empty"}, status=status.HTTP_400_BAD_REQUEST)
             quoted_email = f'"{attendee_email}"'
-            events = events.filter(Q(attendees__icontains=quoted_email) | Q(raw__icontains=quoted_email))
+            events = events.filter(attendees__icontains=quoted_email)
 
         # Apply end_time_lte filter if provided
         end_time_lte = request.query_params.get("end_time_lte")

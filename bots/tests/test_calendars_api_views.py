@@ -173,16 +173,12 @@ class CalendarEventListViewTest(TransactionTestCase):
         self.assertIn("start_time_lt", response.json()["error"])
 
     def test_filter_by_attendee_email(self):
-        """Test that attendee_email matches a whole email in either guest list, ignoring case."""
+        """Test that attendee_email matches a whole email in the attendee list, ignoring case."""
         CalendarEvent.objects.filter(pk=self.event_a1.pk).update(attendees=[{"name": "Jane", "email": "jane@example.com"}])
-        CalendarEvent.objects.filter(pk=self.event_a2.pk).update(
-            raw={"title": "Meeting A2", "attendees": [{"email": "Raw.Only@Example.com"}], "description": 'ask "jane@example.co"'},
-        )
 
         cases = [
-            {"name": "summary list", "email": "jane@example.com", "want": {self.event_a1.object_id}},
+            {"name": "attendee list", "email": "jane@example.com", "want": {self.event_a1.object_id}},
             {"name": "case-insensitive", "email": "JANE@Example.COM", "want": {self.event_a1.object_id}},
-            {"name": "raw list only", "email": "raw.only@example.com", "want": {self.event_a2.object_id}},
             {"name": "no partial match", "email": "example.com", "want": set()},
             {"name": "no match inside other text", "email": "jane@example.co", "want": set()},
         ]

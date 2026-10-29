@@ -1175,7 +1175,7 @@ paths:
         schema:
           type: string
         description: Filter events with this email (case-insensitive) on their attendee
-          list or in the calendar platform's raw event
+          list
         examples:
           AttendeeEmailExample:
             value: jane@example.com
