@@ -17,6 +17,7 @@ from accounts.models import Organization
 from bots.instance_health_alert_manager import InstanceHealthAlertManager
 from bots.instance_health_snapshot_taker import InstanceHealthSnapshotTaker
 from bots.models import Bot, BotStates, Calendar, CalendarStates, ZoomOAuthConnection, ZoomOAuthConnectionStates
+from bots.redis_utils import redis_key
 from bots.tasks.autopay_charge_task import enqueue_autopay_charge_task
 from bots.tasks.launch_scheduled_bot_task import launch_scheduled_bot
 from bots.tasks.refresh_zoom_oauth_connection_task import enqueue_refresh_zoom_oauth_connection_task
@@ -25,7 +26,8 @@ from bots.tasks.sync_zoom_oauth_connection_task import enqueue_sync_zoom_oauth_c
 
 log = logging.getLogger(__name__)
 
-CALENDAR_SYNC_THRESHOLD_HOURS = 24  # The longest a calendar can go without having been synced
+# Local patch #2: env-var configurable poll cadence, in MINUTES.
+CALENDAR_SYNC_THRESHOLD_MINUTES = int(os.getenv("CALENDAR_SYNC_THRESHOLD_MINUTES", "1440"))
 
 # Heartbeat file the scheduler rewrites each cycle so a liveness probe can
 # restart the pod if the loop stalls (a process-liveness check wouldn't catch it).
@@ -121,12 +123,13 @@ class Command(BaseCommand):
     def _run_periodic_calendar_syncs(self):
         """
         Run periodic calendar syncs.
-        Launch sync tasks for calendars that haven't had a sync task enqueued in the last 24 hours.
+        Launch sync tasks for calendars that haven't had a sync task enqueued within
+        CALENDAR_SYNC_THRESHOLD_MINUTES.
         """
         now = timezone.now()
-        cutoff_time = now - timezone.timedelta(hours=CALENDAR_SYNC_THRESHOLD_HOURS)
+        cutoff_time = now - timezone.timedelta(minutes=CALENDAR_SYNC_THRESHOLD_MINUTES)
 
-        # Find connected calendars that haven't had a sync task enqueued in the last 24 hours
+        # Find connected calendars that haven't had a sync task enqueued within the threshold
         calendars = Calendar.objects.filter(
             state=CalendarStates.CONNECTED,
         ).filter(Q(sync_task_enqueued_at__isnull=True) | Q(sync_task_enqueued_at__lte=cutoff_time) | Q(sync_task_requested_at__isnull=False))
@@ -218,7 +221,7 @@ class Command(BaseCommand):
     def _get_args_for_pending_launch_scheduled_bot_tasks(self):
         try:
             scheduled_bot_task_args = set()
-            for delivery_tag, raw in self._get_redis_client().hscan_iter("unacked", match="*"):
+            for delivery_tag, raw in self._get_redis_client().hscan_iter(redis_key("unacked"), match="*"):
                 # Filter for this string being in the raw message: bots.tasks.launch_scheduled_bot_task.launch_scheduled_bot
                 if b"bots.tasks.launch_scheduled_bot_task.launch_scheduled_bot" not in raw:
                     continue
