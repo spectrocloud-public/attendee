@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.86.1-sp.2](https://github.com/spectrocloud-public/attendee/compare/v1.86.1-sp.1...v1.86.1-sp.2) (2026-10-29)
+
+
+### Features
+
+* add start_time_lt and attendee_email filters to calendar_events ([9ea38c9](https://github.com/spectrocloud-public/attendee/commit/9ea38c9e0f7b9099d149387f88e3aad7c1bc83c1))
+
+
+### Bug Fixes
+
+* add start_time_lt and attendee_email filters to calendar_events ([#22](https://github.com/spectrocloud-public/attendee/issues/22)) ([bac7c0d](https://github.com/spectrocloud-public/attendee/commit/bac7c0d47092c5f4ee66d8a294b974ebbaf48d0f))
+
 ## [1.86.1-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.82.3-sp.1...v1.86.1-sp.1) (2026-10-27)
 
 
