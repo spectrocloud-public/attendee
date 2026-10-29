@@ -3,7 +3,9 @@ import os
 import random
 import threading
 import time
+from urllib.parse import urlparse
 
+from django.conf import settings
 from selenium.common.exceptions import ElementClickInterceptedException, ElementNotInteractableException, InvalidSessionIdException, NoSuchElementException, StaleElementReferenceException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -11,6 +13,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from bots.models import RecordingViews
 from bots.utils import cyrillicize_keywords_in_string, remove_characters_from_string, truncate_string_with_ellipsis
+from bots.web_bot_adapter.okta_authenticator import OktaLoginError
+from bots.web_bot_adapter.okta_session_methods import OktaSessionMethods
 from bots.web_bot_adapter.ui_methods import UiBlockedByCaptchaException, UiCouldNotClickElementException, UiCouldNotJoinMeetingWaitingRoomTimeoutException, UiCouldNotLocateElementException, UiLoginAttemptFailedException, UiLoginRequiredException, UiMeetingNotFoundException, UiRequestToJoinDeniedException, UiRetryableException, UiRetryableExpectedException
 
 logger = logging.getLogger(__name__)
@@ -26,7 +30,7 @@ class UiWaitingRoomTransitionFailedException(UiRetryableException):
         super().__init__(message, step, inner_exception)
 
 
-class TeamsUIMethods:
+class TeamsUIMethods(OktaSessionMethods):
     def __init__(self, driver, meeting_url, display_name):
         self.driver = driver
         self.meeting_url = meeting_url
@@ -694,9 +698,10 @@ class TeamsUIMethods:
     def login_to_microsoft_account_with_retries(self):
         # Blanket guard against transient errors on Microsoft's side
         num_attempts = int(os.getenv("MAX_RETRIES_FOR_BOT_MICROSOFT_LOGIN", "3"))
+        login = self.login_to_microsoft_account_with_okta if settings.USE_OKTA_LOGIN_FOR_SIGNED_IN_TEAMS_BOTS else self.login_to_microsoft_account
         for attempt_index in range(num_attempts):
             try:
-                self.login_to_microsoft_account()
+                login()
                 return
             except UiLoginAttemptFailedException as e:
                 last_attempt = attempt_index == num_attempts - 1
@@ -705,19 +710,14 @@ class TeamsUIMethods:
                 logger.warning(f"Error logging in to Microsoft account. Clearing cookies and retrying... Attempts remaining: {num_attempts - attempt_index - 1}")
                 self.driver.delete_all_cookies()
 
-    def login_to_microsoft_account(self):
-        credentials = self.fetch_teams_bot_login_credentials_callback()
-
-        if not credentials:
-            raise UiLoginAttemptFailedException("Teams bot login credentials are not available", "login_to_microsoft_account")
-
+    def submit_microsoft_login_username(self, username):
         logger.info("Navigate to login screen")
         self.driver.get("https://www.office.com/login")
 
         logger.info("Waiting for the username input...")
         username_input = self.locate_element(step="username_input", condition=EC.presence_of_element_located((By.CSS_SELECTOR, 'input[name="loginfmt"]')), wait_time_seconds=10)
         logger.info("Filling in the username...")
-        username_input.send_keys(credentials["username"])
+        username_input.send_keys(username)
 
         time.sleep(1)
 
@@ -727,6 +727,40 @@ class TeamsUIMethods:
         self.click_element(next_button, "next_button")
 
         time.sleep(1)
+
+    def login_to_microsoft_account_with_okta(self):
+        # A tenant that federates sign-in to Okta never shows Microsoft's password input. With an Okta
+        # session cookie already in the browser, Okta answers Microsoft's redirect silently.
+        try:
+            self.establish_okta_session()
+        except OktaLoginError as e:
+            raise UiLoginAttemptFailedException(f"Okta session could not be established: {e}", "login_to_microsoft_account_with_okta") from e
+        self.submit_microsoft_login_username(os.getenv("OKTA_BOT_LOGIN_USERNAME", ""))
+
+        sign_in_hosts = {"login.microsoftonline.com", "login.microsoft.com", "login.live.com", "login.okta.com", settings.OKTA_BOT_LOGIN_DOMAIN}
+        start_waiting_at = time.time()
+        while urlparse(self.driver.current_url).hostname in sign_in_hosts:
+            if self.find_element_by_selector(By.XPATH, '//*[contains(text(), "Stay signed in?")]'):
+                logger.info("Answering the 'Stay signed in?' prompt")
+                self.click_element(self.locate_element(step="stay_signed_in_button", condition=EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[type="submit"]')), wait_time_seconds=10), "stay_signed_in_button")
+
+            if time.time() - start_waiting_at > 60:
+                logger.warning(f"Okta login timed out after 60s. Current URL: {self.driver.current_url}")
+                # The cached Okta session may have been revoked server-side; evict it so the retry regenerates it.
+                self._clear_cached_okta_session()
+                self.send_screenshot_and_mhtml_file_message()
+                raise UiLoginAttemptFailedException("Okta login did not complete", "login_to_microsoft_account_with_okta")
+            time.sleep(1)
+
+        logger.info(f"Microsoft login via Okta complete. URL: {self.driver.current_url}")
+
+    def login_to_microsoft_account(self):
+        credentials = self.fetch_teams_bot_login_credentials_callback()
+
+        if not credentials:
+            raise UiLoginAttemptFailedException("Teams bot login credentials are not available", "login_to_microsoft_account")
+
+        self.submit_microsoft_login_username(credentials["username"])
 
         logger.info("Waiting for the password input...")
         # Verify that the password input is filled in. If it is not, try again several times
