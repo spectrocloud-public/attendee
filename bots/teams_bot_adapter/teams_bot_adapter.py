@@ -177,7 +177,13 @@ class TeamsBotAdapter(WebBotAdapter, TeamsUIMethods):
         return "teams.json"
 
     def subclass_specific_domain_allowlist(self):
-        return self.navigation_config_domain_allowlist()
+        domain_allowlist = self.navigation_config_domain_allowlist()
+
+        if settings.USE_OKTA_LOGIN_FOR_SIGNED_IN_TEAMS_BOTS and settings.OKTA_BOT_LOGIN_DOMAIN:
+            domain_allowlist.append(settings.OKTA_BOT_LOGIN_DOMAIN)
+            domain_allowlist.append("login.okta.com")
+
+        return domain_allowlist
 
     def subclass_specific_chrome_policies(self):
         if not settings.ENFORCE_DOMAIN_ALLOWLIST_IN_CHROME:
