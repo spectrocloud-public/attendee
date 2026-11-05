@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.89.3-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.88.0-sp.1...v1.89.3-sp.1) (2026-11-05)
+
+
+### Features
+
+* add Webex bot support ([#1076](https://github.com/spectrocloud-public/attendee/issues/1076)) ([bb77dec](https://github.com/spectrocloud-public/attendee/commit/bb77dec54ef212544cefa52073d5bc219f7a7f66))
+
+
+### Bug Fixes
+
+* Drop recurring series masters fetched by id in Google Calendar sync ([0c91049](https://github.com/spectrocloud-public/attendee/commit/0c91049199b349bfdf3d34e186caefc3f49db9e8))
+* Drop recurring series masters fetched by id in Google Calendar sync ([#1113](https://github.com/spectrocloud-public/attendee/issues/1113)) ([d18b3de](https://github.com/spectrocloud-public/attendee/commit/d18b3dede1992723cd95f9410818cb606829f04a))
+* Handle some edge cases for livekit room sync ([#1110](https://github.com/spectrocloud-public/attendee/issues/1110)) ([eaacec1](https://github.com/spectrocloud-public/attendee/commit/eaacec16f2939b595f196b3957a717bbb0ed23e9))
+* Small changes to webex bot ([#1109](https://github.com/spectrocloud-public/attendee/issues/1109)) ([a013cf0](https://github.com/spectrocloud-public/attendee/commit/a013cf0b6227ff7b8a91131a1ccacfc94b079451))
+* sync upstream main into spectrocloud ([#27](https://github.com/spectrocloud-public/attendee/issues/27)) ([a0f3919](https://github.com/spectrocloud-public/attendee/commit/a0f3919523b137427e4210f7416d13c4317baf83))
+
 ## [1.88.0-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.88.0...v1.88.0-sp.1) (2026-10-29)
 
 
