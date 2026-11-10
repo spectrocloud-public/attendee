@@ -258,6 +258,10 @@ BOT_IMAGE_SCHEMA = {
 TRANSCRIPTION_SETTINGS_SCHEMA = {
     "type": "object",
     "properties": {
+        "enabled": {
+            "type": "boolean",
+            "description": "Set to false to disable transcription. Defaults to true.",
+        },
         "deepgram": {
             "type": "object",
             "properties": {
@@ -940,6 +944,16 @@ class ZoomSettingsJSONField(serializers.JSONField):
                 "description": "Number of seconds to wait before activating the silence timeout",
                 "default": 1200,
             },
+            "silence_activate_after_participant_count": {
+                "type": "integer",
+                "description": "Activate the silence timeout once this many participants (excluding bots) are in the meeting at the same time. Silence detection activates when either this or silence_activate_after_seconds is met, whichever comes first. Disabled by default.",
+                "default": None,
+            },
+            "silence_pending_log_after_seconds": {
+                "type": "integer",
+                "description": "Number of seconds of continuous silence after which the bot creates an auto_leave_silence_pending log entry (delivered by the bot_logs.update webhook), ahead of leaving at silence_timeout_seconds. Must be less than silence_timeout_seconds. Disabled by default.",
+                "default": None,
+            },
             "only_participant_in_meeting_timeout_seconds": {
                 "type": "integer",
                 "description": "Number of seconds to wait before leaving if bot becomes the only participant in the meeting because everyone else left.",
@@ -1307,6 +1321,9 @@ class CreateAsyncTranscriptionSerializer(serializers.Serializer):
             jsonschema.validate(instance=value, schema=TRANSCRIPTION_SETTINGS_SCHEMA)
         except jsonschema.exceptions.ValidationError as e:
             raise serializers.ValidationError(e.message)
+
+        if "enabled" in value:
+            raise serializers.ValidationError({"transcription_settings": "The enabled field is not applicable to an async transcription request."})
 
         if "meeting_closed_captions" in value:
             raise serializers.ValidationError({"transcription_settings": "Meeting closed captions are not available for async transcription."})
@@ -1814,6 +1831,9 @@ class CreateBotSerializer(BotValidationMixin, serializers.Serializer):
             # Set default if not provided
             if param not in value:
                 value[param] = default
+
+        if value["silence_pending_log_after_seconds"] is not None and value["silence_pending_log_after_seconds"] >= value["silence_timeout_seconds"]:
+            raise serializers.ValidationError("silence_pending_log_after_seconds must be less than silence_timeout_seconds")
 
         return value
 

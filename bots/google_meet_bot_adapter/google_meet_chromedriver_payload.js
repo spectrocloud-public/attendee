@@ -739,7 +739,7 @@ class StyleManager {
     }
 
     async openChatPanel() {
-        const chatButton = document.querySelector('button[aria-label="Chat with everyone"]');
+        const chatButton = document.querySelector('button[aria-label="Chat with everyone"], button[aria-label="Chat with everyone - New message"]');
         if (chatButton) {
             // Click to open the chat panel
             chatButton.click();
@@ -790,6 +790,11 @@ class StyleManager {
                 console.log('[atlas] Chat-integrated Meet, chat_space_id=' + chatSpaceId);
             }
             window.ws.sendJson(_payload);
+        } else {
+            window.ws.sendJson({
+                type: 'Error',
+                message: 'Failed to find chat button in openChatPanel'
+            });
         }
     }
 

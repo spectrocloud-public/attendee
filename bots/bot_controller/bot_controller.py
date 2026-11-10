@@ -111,7 +111,7 @@ class BotController:
             return self.per_participant_non_streaming_audio_input_manager
 
     def save_utterances_for_individual_audio_chunks(self):
-        return self.get_recording_transcription_provider() != TranscriptionProviders.CLOSED_CAPTION_FROM_PLATFORM
+        return self.get_recording_transcription_provider() not in (TranscriptionProviders.NO_TRANSCRIPTION, TranscriptionProviders.CLOSED_CAPTION_FROM_PLATFORM)
 
     def save_utterances_for_closed_captions(self):
         return self.get_recording_transcription_provider() == TranscriptionProviders.CLOSED_CAPTION_FROM_PLATFORM
@@ -437,7 +437,6 @@ class BotController:
         zoom_oauth_credentials, zoom_tokens = self.get_zoom_oauth_credentials_and_tokens()
 
         return ZoomBotAdapter(
-            use_one_way_audio=self.pipeline_configuration.transcribe_audio or self.pipeline_configuration.websocket_stream_per_participant_audio,
             use_mixed_audio=self.pipeline_configuration.record_audio or self.pipeline_configuration.rtmp_stream_audio or self.pipeline_configuration.websocket_stream_audio,
             use_video=self.pipeline_configuration.record_video or self.pipeline_configuration.rtmp_stream_video,
             display_name=self.bot_in_db.name,
@@ -467,12 +466,11 @@ class BotController:
         zoom_oauth_credentials, zoom_tokens = self.get_zoom_oauth_credentials_and_tokens()
 
         return ZoomRTMSAdapter(
-            use_one_way_audio=self.pipeline_configuration.transcribe_audio or self.pipeline_configuration.websocket_stream_per_participant_audio,
             use_mixed_audio=self.pipeline_configuration.record_audio or self.pipeline_configuration.rtmp_stream_audio or self.pipeline_configuration.websocket_stream_audio,
             use_video=self.pipeline_configuration.record_video or self.pipeline_configuration.rtmp_stream_video,
             send_message_callback=self.on_message_from_adapter,
             add_audio_chunk_callback=self.get_per_participant_audio_chunk_callback(),
-            upsert_caption_callback=self.closed_caption_manager.upsert_caption,
+            upsert_caption_callback=self.closed_caption_manager.upsert_caption if self.save_utterances_for_closed_captions() else None,
             zoom_client_id=zoom_oauth_credentials["client_id"],
             zoom_client_secret=zoom_oauth_credentials["client_secret"],
             zoom_rtms=self.bot_in_db.zoom_rtms(),
@@ -2413,6 +2411,12 @@ class BotController:
         if message.get("message") == BotAdapter.Messages.WEBINAR_BOT_PROMOTED_TO_PANELIST:
             logger.info("Received message that webinar bot was promoted to panelist")
             BotLogManager.create_bot_log_entry(bot=self.bot_in_db, level=BotLogEntryLevels.INFO, entry_type=BotLogEntryTypes.WEBINAR_PANELIST_PROMOTION, message="Bot was promoted to panelist in webinar")
+            return
+
+        if message.get("message") == BotAdapter.Messages.AUTO_LEAVE_SILENCE_PENDING:
+            logger.info("Received message that bot will leave soon due to silence")
+            # Info level, not warning: leaving due to silence is expected behavior, not a problem
+            BotLogManager.create_bot_log_entry(bot=self.bot_in_db, level=BotLogEntryLevels.INFO, entry_type=BotLogEntryTypes.AUTO_LEAVE_SILENCE_PENDING, message=f"No audio detected for {message['seconds_of_silence']} seconds. Bot will leave the meeting in {message['seconds_until_leave']} seconds if no audio is detected.")
             return
 
         raise Exception(f"Received unexpected message from bot adapter: {message}")
