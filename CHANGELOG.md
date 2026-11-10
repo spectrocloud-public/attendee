@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.91.0-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.89.3-sp.1...v1.91.0-sp.1) (2026-11-10)
+
+
+### Features
+
+* Add ability to disable transcription ([#932](https://github.com/spectrocloud-public/attendee/issues/932)) ([653a3bd](https://github.com/spectrocloud-public/attendee/commit/653a3bd81bb93bc5527c3ec121beaf2fe9f5b9c4))
+* start silence detection on participant join and warn before silence auto-leave ([46b20a2](https://github.com/spectrocloud-public/attendee/commit/46b20a2b62e34ffe47aac0ea36de7ecc645b5b5b))
+* start silence detection on participant join and warn before silence auto-leave ([#1121](https://github.com/spectrocloud-public/attendee/issues/1121)) ([7c29d33](https://github.com/spectrocloud-public/attendee/commit/7c29d33244760ff76869fa152378acca2464efa1))
+
+
+### Bug Fixes
+
+* add alternate label for gmeet chat msg panel open ([f52da79](https://github.com/spectrocloud-public/attendee/commit/f52da791c4ceaab9fbb1f23b7d10041ce8c22713))
+* add alternate label for gmeet chat msg panel open ([#1116](https://github.com/spectrocloud-public/attendee/issues/1116)) ([5c65f7d](https://github.com/spectrocloud-public/attendee/commit/5c65f7d1c0405c711eeacf704552edfba0d2b103))
+* Reduce cpu usage for room sync audio ([#1115](https://github.com/spectrocloud-public/attendee/issues/1115)) ([d099ca4](https://github.com/spectrocloud-public/attendee/commit/d099ca431576be986802a7af31751cdd96a86593))
+* sync upstream main into spectrocloud ([#29](https://github.com/spectrocloud-public/attendee/issues/29)) ([5cf5df9](https://github.com/spectrocloud-public/attendee/commit/5cf5df952c01018acc62609004dae83d2a1aa7fd))
+* **teams:** don't treat lobby participants as speaking ([5e1d5d5](https://github.com/spectrocloud-public/attendee/commit/5e1d5d559e64629ead28e5f706fad0dc0a64face))
+* **teams:** don't treat lobby participants as speaking ([#1119](https://github.com/spectrocloud-public/attendee/issues/1119)) ([d941947](https://github.com/spectrocloud-public/attendee/commit/d941947b10862f2bed5dafb9eb467a8dd32712af))
+
+
+### Documentation
+
+* list auto_leave_silence_pending in bot_logs.update entry types ([bb04f87](https://github.com/spectrocloud-public/attendee/commit/bb04f87bc419c5ecdc9804a72150047643cfdbb1))
+
 ## [1.89.3-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.88.0-sp.1...v1.89.3-sp.1) (2026-11-05)
 
 
