@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 from django.db import connection
 from django.db.utils import OperationalError
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
@@ -110,6 +110,16 @@ class TimingAssertionsMixin:
             fastest = elapsed if fastest is None else min(fastest, elapsed)
 
         self.assertLess(fastest, budget_seconds, f"Fastest of {runs} runs took {fastest * 1000:.1f}ms, budget is {budget_seconds * 1000:.0f}ms")
+
+
+class RedisQueuePrefixTestCase(SimpleTestCase):
+    @override_settings(CELERY_TASK_ROUTES={}, REDIS_KEY_PREFIX="tricorder:")
+    def test_reads_prefixed_queue_key(self):
+        redis_client = MagicMock()
+        redis_client.llen.return_value = 1
+
+        self.assertEqual(get_celery_queue_depths(redis_client), {"celery": 1})
+        redis_client.llen.assert_called_once_with("tricorder:celery")
 
 
 class GetCeleryQueueDepthsTestCase(TestCase):

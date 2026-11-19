@@ -1,10 +1,37 @@
+import json
+import os
+import subprocess
+import sys
 import time
 
 import redis
 from django.conf import settings
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
-from bots.redis_utils import incr_and_expire_nx
+from bots.redis_utils import incr_and_expire_nx, redis_key
+
+
+class RedisKeyTest(SimpleTestCase):
+    @override_settings(REDIS_KEY_PREFIX="tricorder:")
+    def test_prefixes_key(self):
+        self.assertEqual(redis_key("celery"), "tricorder:celery")
+
+    def test_configures_celery_broker_and_result_prefixes(self):
+        env = os.environ.copy()
+        env.update(REDIS_URL="redis://localhost:6379/0", REDIS_KEY_PREFIX="tricorder:")
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import json; from attendee.settings import base; print(json.dumps([base.CELERY_BROKER_TRANSPORT_OPTIONS, base.CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS]))",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+        self.assertEqual(json.loads(result.stdout), [{"global_keyprefix": "tricorder:"}, {"global_keyprefix": "tricorder:"}])
 
 
 class IncrAndExpireNxTest(TestCase):

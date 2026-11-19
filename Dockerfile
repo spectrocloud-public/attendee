@@ -8,6 +8,8 @@ ENV cwd=/$project
 WORKDIR $cwd
 
 ARG DEBIAN_FRONTEND=noninteractive
+# Optional pip mirror (CI sets the org registry proxy); unset = PyPI
+ARG PIP_INDEX_URL
 
 #  Install Dependencies
 RUN apt-get update  \
