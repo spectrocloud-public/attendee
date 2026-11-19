@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.97.1-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.97.1...v1.97.1-sp.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* sync upstream main into spectrocloud ([#31](https://github.com/spectrocloud-public/attendee/issues/31)) ([5eaa6db](https://github.com/spectrocloud-public/attendee/commit/5eaa6db6b6f09a26aa0d2b2566bb373afff8dcc4))
+
 ## [1.91.0-sp.1](https://github.com/spectrocloud-public/attendee/compare/v1.89.3-sp.1...v1.91.0-sp.1) (2026-11-10)
 
 
