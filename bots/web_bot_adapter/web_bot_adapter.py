@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 import signal
 import subprocess
 import threading
@@ -27,7 +28,6 @@ from bots.bot_adapter import BotAdapter
 from bots.models import ParticipantEventTypes, RecordingViews
 from bots.per_participant_realtime_video_configuration import PerParticipantRealtimeVideoConfiguration
 from bots.room_sync_source_participant_configuration import RoomSyncSourceParticipantConfiguration
-from bots.room_sync_utils import add_bot_indicator_to_display_name
 from bots.utils import half_ceil, mask_url_query_param_values, scale_i420
 
 from .debug_screen_recorder import DebugScreenRecorder
@@ -66,7 +66,7 @@ class WebBotAdapter(BotAdapter):
         record_participant_speech_start_stop_events: bool,
         room_sync_source_participant_configuration: RoomSyncSourceParticipantConfiguration | None,
     ):
-        self.display_name = display_name if not room_sync_source_participant_configuration else add_bot_indicator_to_display_name(display_name)
+        self.display_name = display_name
         self.send_message_callback = send_message_callback
         self.add_audio_chunk_callback = add_audio_chunk_callback
         self.add_mixed_audio_chunk_callback = add_mixed_audio_chunk_callback
@@ -101,6 +101,7 @@ class WebBotAdapter(BotAdapter):
         self.cleaned_up = False
 
         self.websocket_port = None
+        self.websocket_host = None
         self.websocket_server = None
         self.websocket_thread = None
         self.last_websocket_message_processed_time = None
@@ -180,6 +181,20 @@ class WebBotAdapter(BotAdapter):
             return True
 
         return False
+
+    def handle_meeting_id_change(self, json_data):
+        previous_meeting_id = json_data.get("previousMeetingId")
+        new_meeting_id = json_data.get("newMeetingId")
+        if not new_meeting_id:
+            return
+
+        # Only accept the change if it is a change from the meeting id we currently have
+        if self.meeting_uuid and previous_meeting_id != self.meeting_uuid:
+            logger.info(f"Ignoring meeting id change because previous meeting id does not match. meeting_uuid: {self.meeting_uuid} previous_meeting_id: {previous_meeting_id} new_meeting_id: {new_meeting_id}")
+            return
+
+        logger.info(f"meeting_uuid changed from {self.meeting_uuid} to {new_meeting_id}")
+        self.meeting_uuid = new_meeting_id
 
     # In Teams someone can send a chat message into the meeting even if
     # they are not in the meeting. We lazily insert them as inactive participants
@@ -505,6 +520,9 @@ class WebBotAdapter(BotAdapter):
                             if json_data.get("change") == "failed_to_join":
                                 self.handle_failed_to_join(json_data.get("reason"))
 
+                        elif json_data.get("type") == "MeetingIdChange":
+                            self.handle_meeting_id_change(json_data)
+
                         elif json_data.get("type") == "RecordingPermissionChange":
                             if json_data.get("change") == "granted":
                                 self.after_bot_can_record_meeting()
@@ -537,24 +555,35 @@ class WebBotAdapter(BotAdapter):
 
         websocket_handler = self.handle_websocket if self.livekit_websocket_bridge is None else self.handle_websocket_with_livekit_bridge
 
-        if settings.ENABLE_BOT_WEBSOCKET_PORT_SELECTION_BY_OS:
-            # Port 0 lets the OS pick a free port, so bots sharing a network namespace
-            # (celery workers, host networking) can't collide on a fixed port.
-            self.websocket_server = serve(
-                websocket_handler,
-                "localhost",
-                0,
-                compression=None,
-                max_size=None,
-            )
-            port = self.websocket_server.socket.getsockname()[1]
-            logger.info(f"Websocket server started on ws://localhost:{port}")
-            self.websocket_port = port
-            self.websocket_server.serve_forever()
-            return
-
         port = self.get_websocket_port()
         max_retries = 10
+
+        if settings.ENABLE_BOT_WEBSOCKET_PORT_SELECTION_BY_OS:
+            # Bots sharing a network namespace (celery workers, host networking) each bind the platform's
+            # fixed port on their own random loopback IP (all of 127.0.0.0/8 is loopback on Linux).
+            # init_driver maps localhost to that IP in Chrome, so the page still connects to ws://localhost:<port>,
+            # which keeps CSPs that only allow a specific port (e.g. Teams' connect-src ws://localhost:8097) happy.
+            for attempt in range(max_retries):
+                host = f"127.{random.randint(1, 254)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+                try:
+                    self.websocket_server = serve(
+                        websocket_handler,
+                        host,
+                        port,
+                        compression=None,
+                        max_size=None,
+                    )
+                except OSError as e:
+                    if e.errno == 98:  # Address already in use
+                        logger.info(f"{host}:{port} is already in use, trying another loopback IP...")
+                        continue
+                    raise
+                logger.info(f"Websocket server started on ws://{host}:{port}")
+                self.websocket_host = host
+                self.websocket_port = port
+                self.websocket_server.serve_forever()
+                return
+            raise Exception(f"Could not find available loopback IP after {max_retries} attempts")
 
         for attempt in range(max_retries):
             try:
@@ -600,7 +629,8 @@ class WebBotAdapter(BotAdapter):
     def capture_screenshot_and_mhtml_file(self):
         # Take a screenshot and mhtml file of the page, because it is helpful to have for debugging
         current_time = datetime.datetime.now()
-        timestamp = current_time.strftime("%Y%m%d_%H%M%S")
+        # Microseconds keep this from colliding with another capture taken in the same second
+        timestamp = current_time.strftime("%Y%m%d_%H%M%S_%f")
         screenshot_path = f"/tmp/ui_element_not_found_{timestamp}.png"
         try:
             self.driver.save_screenshot(screenshot_path)
@@ -652,24 +682,7 @@ class WebBotAdapter(BotAdapter):
         )
 
     def send_debug_screenshot_message(self, step, exception, inner_exception):
-        current_time = datetime.datetime.now()
-        timestamp = current_time.strftime("%Y%m%d_%H%M%S")
-        screenshot_path = f"/tmp/ui_element_not_found_{timestamp}.png"
-        try:
-            self.driver.save_screenshot(screenshot_path)
-        except Exception as e:
-            logger.warning(f"Error saving screenshot: {e}")
-            screenshot_path = None
-
-        mhtml_file_path = f"/tmp/page_snapshot_{timestamp}.mhtml"
-        try:
-            result = self.driver.execute_cdp_cmd("Page.captureSnapshot", {})
-            mhtml_bytes = result["data"]  # Extract the data from the response dictionary
-            with open(mhtml_file_path, "w", encoding="utf-8") as f:
-                f.write(mhtml_bytes)
-        except Exception as e:
-            logger.warning(f"Error saving mhtml: {e}")
-            mhtml_file_path = None
+        screenshot_path, mhtml_file_path, current_time = self.capture_screenshot_and_mhtml_file()
 
         self.send_message_callback(
             {
@@ -842,13 +855,23 @@ class WebBotAdapter(BotAdapter):
         if settings.MONITOR_DOMAIN_ALLOWLIST_IN_CHROME:
             options.set_capability("webSocketUrl", True)
 
+        if self.websocket_host:
+            options.add_argument(f"--host-resolver-rules=MAP localhost {self.websocket_host}")
+
         self.add_subclass_specific_chrome_options(options)
 
         if self.driver:
             self.teardown_driver(graceful_shutdown_fn=self.default_graceful_driver_shutdown)
             self.driver = None
 
-        self.driver = webdriver.Chrome(options=options, service=Service(executable_path="/usr/local/bin/chromedriver"))
+        chrome_timezone = os.getenv("CHROME_TIMEZONE")
+        if chrome_timezone:
+            logger.info(f"Setting Chrome timezone to {chrome_timezone}")
+        service = Service(
+            executable_path="/usr/local/bin/chromedriver",
+            env={**os.environ, "TZ": chrome_timezone} if chrome_timezone else None,
+        )
+        self.driver = webdriver.Chrome(options=options, service=service)
         self.start_domain_allow_list_listener()
         logger.info(f"web driver server initialized at port {self.driver.service.port}")
 
@@ -1094,7 +1117,7 @@ class WebBotAdapter(BotAdapter):
                 num_expected_exceptions += 1
                 if num_expected_exceptions % 5 == 0:
                     num_retries += 1
-                    logger.info(f"Failed to join meeting and the {e.__class__.__name__} exception is expected and {num_expected_exceptions} expected exceptions have occurred, so incrementing num_retries. This usually indicates that the meeting has not started yet, so we will wait for the configured amount of time which is 180 seconds before retrying")
+                    logger.info(f"Failed to join meeting and the {e.__class__.__name__} exception is expected and {num_expected_exceptions} expected exceptions have occurred, so incrementing num_retries. This usually indicates that the meeting has not started yet, so we will restart the pod after {settings.BLOCKED_BY_PLATFORM_POD_RESTART_DELAY_SECONDS} seconds and retry")
                     # We're going to start a new pod to see if that fixes the issue
                     self.send_message_callback({"message": self.Messages.BLOCKED_BY_PLATFORM_REPEATEDLY})
                     return

@@ -708,6 +708,7 @@ class BotController:
                 region_name=external_media_storage_credentials.get("region_name"),
                 access_key_id=external_media_storage_credentials.get("access_key_id"),
                 access_key_secret=external_media_storage_credentials.get("access_key_secret"),
+                ignore_configured_endpoint_urls=True,
             )
             file_uploader.upload_file(self.get_recording_file_location())
             file_uploader.wait_for_upload()
@@ -1714,8 +1715,7 @@ class BotController:
             return
 
         # Mirror participant joins/leaves into the LiveKit room if room sync is enabled
-        # Don't sync the bot itself into the room
-        if self.room_sync_client is not None and not participant["participant_is_the_bot"]:
+        if self.room_sync_client is not None:
             self.room_sync_client.handle_participant_event(event, participant=participant)
 
         # Create participant record if it doesn't exist
@@ -2113,8 +2113,7 @@ class BotController:
                 return
 
             logger.info("Received message that we were blocked by platform repeatedly, so recreating pod")
-            # Run task to restart the bot pod with 1 minute delay
-            restart_bot_pod.apply_async(args=[self.bot_in_db.id], countdown=60)
+            restart_bot_pod.apply_async(args=[self.bot_in_db.id], countdown=settings.BLOCKED_BY_PLATFORM_POD_RESTART_DELAY_SECONDS)
             # Don't do the normal cleanup tasks because we'll be restarting the pod
             if self.main_loop and self.main_loop.is_running():
                 logger.info("Quitting main loop")
